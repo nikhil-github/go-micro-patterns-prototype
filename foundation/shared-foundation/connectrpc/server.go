@@ -6,6 +6,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/spf13/viper"
+	"github.com/yourusername/shared-foundation/core"
 )
 
 type Config struct {
@@ -46,8 +47,19 @@ func (s *Server) Stop(ctx context.Context) error {
 	return nil
 }
 
+func (s *Server) Name() string {
+	return "connectrpc-server"
+}
+
 func NewDummyHandler() *connect.Handler {
 	return connect.NewUnaryHandler("/test.TestService/TestMethod", func(ctx context.Context, req *connect.Request[any]) (*connect.Response[any], error) {
 		return connect.NewResponse[any](nil), nil
 	})
+}
+
+// ConnectRPCServer interface for gRPC/Connect-RPC server
+type ConnectRPCServer interface {
+	core.Service
+	RegisterHandler(path string, handler interface{}) error
+	GetHandler() interface{} // Returns the underlying handler for registration
 }

@@ -3,6 +3,10 @@ package foundation
 import (
 	"context"
 	"time"
+
+	"github.com/yourusername/shared-foundation/logging"
+	"github.com/yourusername/shared-foundation/messaging"
+	"github.com/yourusername/shared-foundation/tracing"
 )
 
 // Mock implementations for demonstration
@@ -18,7 +22,7 @@ func (m *MockLogger) Debug(msg string, args ...any)   {}
 func (m *MockLogger) Info(msg string, args ...any)    {}
 func (m *MockLogger) Warn(msg string, args ...any)    {}
 func (m *MockLogger) Error(msg string, args ...any)   {}
-func (m *MockLogger) With(args ...any) Logger         { return m }
+func (m *MockLogger) With(args ...any) logging.Logger { return m }
 
 type MockTracer struct {
 	name string
@@ -27,13 +31,13 @@ type MockTracer struct {
 func (m *MockTracer) Start(ctx context.Context) error { return nil }
 func (m *MockTracer) Stop(ctx context.Context) error  { return nil }
 func (m *MockTracer) Name() string                    { return m.name }
-func (m *MockTracer) StartSpan(name string, opts ...SpanOption) Span {
+func (m *MockTracer) StartSpan(name string, opts ...tracing.SpanOption) tracing.Span {
 	return &MockSpan{}
 }
-func (m *MockTracer) Inject(span Span, format interface{}, carrier interface{}) error {
+func (m *MockTracer) Inject(span tracing.Span, format interface{}, carrier interface{}) error {
 	return nil
 }
-func (m *MockTracer) Extract(format interface{}, carrier interface{}) (Span, error) {
+func (m *MockTracer) Extract(format interface{}, carrier interface{}) (tracing.Span, error) {
 	return &MockSpan{}, nil
 }
 
@@ -76,12 +80,12 @@ type MockBroker struct {
 	name string
 }
 
-func (m *MockBroker) Start(ctx context.Context) error                      { return nil }
-func (m *MockBroker) Stop(ctx context.Context) error                       { return nil }
-func (m *MockBroker) Name() string                                         { return m.name }
-func (m *MockBroker) Publish(topic string, message []byte) error           { return nil }
-func (m *MockBroker) Subscribe(topic string, handler MessageHandler) error { return nil }
-func (m *MockBroker) Unsubscribe(topic string) error                       { return nil }
+func (m *MockBroker) Start(ctx context.Context) error                                { return nil }
+func (m *MockBroker) Stop(ctx context.Context) error                                 { return nil }
+func (m *MockBroker) Name() string                                                   { return m.name }
+func (m *MockBroker) Publish(topic string, message []byte) error                     { return nil }
+func (m *MockBroker) Subscribe(topic string, handler messaging.MessageHandler) error { return nil }
+func (m *MockBroker) Unsubscribe(topic string) error                                 { return nil }
 
 type MockCache struct {
 	name string

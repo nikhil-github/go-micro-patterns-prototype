@@ -1,4 +1,4 @@
-package logger
+package logging
 
 import (
 	"context"
@@ -7,29 +7,17 @@ import (
 	"os"
 )
 
-// Logger interface for this package
-type Logger interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	Name() string
-	Debug(msg string, args ...any)
-	Info(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-	With(args ...any) Logger
-}
-
-// LoggerConfig configuration
-type LoggerConfig struct {
-	Level  string
-	Format string
-	Output string
-}
-
 // SlogLogger implements the Logger interface using Go's slog package
 type SlogLogger struct {
 	logger *slog.Logger
 	name   string
+}
+
+// LoggerConfig configuration for the logger
+type LoggerConfig struct {
+	Level  string
+	Format string
+	Output string
 }
 
 // NewSlogLogger creates a new slog-based logger

@@ -28,7 +28,7 @@ type App struct {
 }
 
 // New creates a new App with the given name and version
-func New(name, version string) *App {
+func New(name, version string, options ...AppOption) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Load configuration
@@ -36,86 +36,62 @@ func New(name, version string) *App {
 	cfg.App.Name = name
 	cfg.App.Version = version
 
-	return &App{
+	app := &App{
 		config: cfg,
 		ctx:    ctx,
 		cancel: cancel,
 	}
+
+	// Apply options
+	for _, option := range options {
+		option(app)
+	}
+
+	// Set sensible defaults if not provided
+	if app.logger == nil {
+		app.logger = DefaultLogger()
+	}
+	if app.tracer == nil {
+		app.tracer = DefaultTracer()
+	}
+	if app.metrics == nil {
+		app.metrics = DefaultMetrics()
+	}
+	if app.broker == nil {
+		app.broker = DefaultBroker()
+	}
+	if app.cache == nil {
+		app.cache = DefaultCache()
+	}
+	if app.database == nil {
+		app.database = DefaultDatabase()
+	}
+	if app.serviceDiscovery == nil {
+		app.serviceDiscovery = DefaultServiceDiscovery()
+	}
+	if app.connectRPCServer == nil {
+		app.connectRPCServer = DefaultConnectRPCServer()
+	}
+
+	return app
 }
 
-// Init initializes all services based on configuration
+// Init initializes all services (now handled by functional options)
 func (a *App) Init() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	// Create service factories
-	loggerFactory := NewLoggerFactory()
-	tracerFactory := NewTracerFactory()
-	metricsFactory := NewMetricsFactory()
-	discoveryFactory := NewServiceDiscoveryFactory()
-	brokerFactory := NewBrokerFactory()
-	cacheFactory := NewCacheFactory()
-	dbFactory := NewDatabaseFactory()
-	connectFactory := NewConnectRPCServerFactory()
-
-	// Initialize services in dependency order
-	var err error
-
-	// 1. Logger (no dependencies)
-	a.logger, err = loggerFactory.Create(a.config.Logger)
-	if err != nil {
-		return fmt.Errorf("failed to create logger: %w", err)
+	// Add all services to the services slice for lifecycle management
+	a.services = []Service{
+		a.logger,
+		a.tracer,
+		a.metrics,
+		a.serviceDiscovery,
+		a.broker,
+		a.cache,
+		a.database,
+		a.connectRPCServer,
 	}
-	a.services = append(a.services, a.logger)
-
-	// 2. Tracer (depends on logger)
-	a.tracer, err = tracerFactory.Create(a.config.Tracer, a.logger)
-	if err != nil {
-		return fmt.Errorf("failed to create tracer: %w", err)
-	}
-	a.services = append(a.services, a.tracer)
-
-	// 3. Metrics (depends on logger)
-	a.metrics, err = metricsFactory.Create(a.config.Metrics, a.logger)
-	if err != nil {
-		return fmt.Errorf("failed to create metrics: %w", err)
-	}
-	a.services = append(a.services, a.metrics)
-
-	// 4. Service Discovery (depends on logger)
-	a.serviceDiscovery, err = discoveryFactory.Create(a.config.ServiceDiscovery, a.logger)
-	if err != nil {
-		return fmt.Errorf("failed to create service discovery: %w", err)
-	}
-	a.services = append(a.services, a.serviceDiscovery)
-
-	// 5. Broker (depends on logger, tracer)
-	a.broker, err = brokerFactory.Create(a.config.Broker, a.logger, a.tracer)
-	if err != nil {
-		return fmt.Errorf("failed to create broker: %w", err)
-	}
-	a.services = append(a.services, a.broker)
-
-	// 6. Cache (depends on logger, tracer)
-	a.cache, err = cacheFactory.Create(a.config.Cache, a.logger, a.tracer)
-	if err != nil {
-		return fmt.Errorf("failed to create cache: %w", err)
-	}
-	a.services = append(a.services, a.cache)
-
-	// 7. Database (depends on logger, tracer)
-	a.database, err = dbFactory.Create(a.config.Database, a.logger, a.tracer)
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
-	}
-	a.services = append(a.services, a.database)
-
-	// 8. ConnectRPC Server (depends on logger, tracer, metrics)
-	a.connectRPCServer, err = connectFactory.Create(a.config.ConnectRPC, a.logger, a.tracer, a.metrics)
-	if err != nil {
-		return fmt.Errorf("failed to create connectRPC server: %w", err)
-	}
-	a.services = append(a.services, a.connectRPCServer)
 
 	a.logger.Info("App initialized successfully",
 		"name", a.config.App.Name,

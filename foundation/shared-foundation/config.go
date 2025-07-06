@@ -15,6 +15,7 @@ type AppConfig struct {
 
 // LoggerConfig configuration
 type LoggerConfig struct {
+	Type   string `mapstructure:"type"` // slog, logrus, zap, etc.
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
 	Output string `mapstructure:"output"`
@@ -64,6 +65,7 @@ type DatabaseConfig struct {
 
 // ConnectRPCConfig configuration
 type ConnectRPCConfig struct {
+	Type    string `mapstructure:"type"` // default, custom, etc.
 	Address string `mapstructure:"address"`
 }
 
@@ -90,6 +92,7 @@ func Load() *Config {
 	viper.SetDefault("APP_ENV", "development")
 
 	// Logger defaults
+	viper.SetDefault("LOGGER_TYPE", "slog")
 	viper.SetDefault("LOGGER_LEVEL", "info")
 	viper.SetDefault("LOGGER_FORMAT", "text")
 	viper.SetDefault("LOGGER_OUTPUT", "stdout")
@@ -122,6 +125,7 @@ func Load() *Config {
 	viper.SetDefault("DATABASE_DSN", "postgres://user:pass@db:5432/mydb")
 
 	// ConnectRPC defaults
+	viper.SetDefault("CONNECTRPC_TYPE", "default")
 	viper.SetDefault("CONNECTRPC_ADDRESS", ":8080")
 
 	var cfg Config
