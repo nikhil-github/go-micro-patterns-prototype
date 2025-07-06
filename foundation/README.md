@@ -1,118 +1,174 @@
-# Service Factory Library
+# Foundation - Go Microservices Shared Library
 
-This Go library provides a comprehensive, thread-safe ServiceFactory for bootstrapping infrastructure services in a microservices architecture. The ServiceFactory automatically manages logger initialization, configuration loading (using viper), context management, and service lifecycle with graceful shutdown.
+This repository contains a Go-idiomatic shared library for microservices with infrastructure components. The library provides a comprehensive foundation for building microservices with standardized logging, tracing, metrics, messaging, caching, and database access.
+
+## Structure
+
+The library is organized in a Go-idiomatic structure:
+
+```
+foundation/
+├── shared-foundation/              # Main shared library
+│   ├── go.mod
+│   ├── README.md
+│   ├── types.go                    # All interfaces and types
+│   ├── config.go                   # Configuration management
+│   ├── app.go                      # Main App orchestrator
+│   ├── factory.go                  # Service factories
+│   ├── mocks.go                    # Mock implementations
+│   ├── logger/                     # Logger implementations
+│   ├── tracer/                     # Tracer implementations
+│   ├── metrics/                    # Metrics implementations
+│   ├── broker/                     # Message broker implementations
+│   ├── cache/                      # Cache implementations
+│   ├── database/                   # Database implementations
+│   ├── connectrpc/                 # ConnectRPC implementations
+│   └── examples/                   # Usage examples
+└── README.md                       # This file
+```
 
 ## Features
-- Comprehensive ServiceFactory that handles logger initialization, config loading, context management, and service lifecycle
-- Automatic environment variable configuration via viper
-- Interface-based service abstraction for extensibility
-- Factory methods for connectRPC server with both auto-config and custom config options
-- Thread-safe, dependency-injection friendly design
-- Built-in context management for microservice lifecycle
-- Graceful shutdown with signal handling
-- Logging via log/slog
-- Example usage in `main.go`
-- Unit tests using `testing`
 
-## Usage Example
+- **Go-Idiomatic Structure**: Follows standard Go conventions and patterns
+- **Interface-Based Design**: Clean abstractions for all infrastructure components
+- **Factory Pattern**: Easy service creation and configuration
+- **Environment Configuration**: Automatic config loading via environment variables
+- **Graceful Shutdown**: Coordinated service lifecycle management
+- **Mock Implementations**: Ready for testing and development
+- **Extensible Architecture**: Easy to add new service implementations
 
-```
-go run main.go
-```
+## Quick Start
 
-Example `main.go`:
+### 1. Use the Shared Library
+
 ```go
 package main
 
 import (
-	"context"
+    "context"
+    "log"
+    "os"
+    "os/signal"
+    "syscall"
 
-	"github.com/yourusername/foundation/servicefactory"
+    "github.com/yourusername/shared-foundation"
 )
 
 func main() {
-	factory := servicefactory.NewServiceFactory()
-	
-	// Build the factory (loads all configs from env)
-	factory.Build()
+    // Create app with name and version
+    application := foundation.New("user-service", "1.0.0")
 
-	// Get the service context for use by the microservice
-	ctx := factory.GetContext()
+    // Initialize all services
+    if err := application.Init(); err != nil {
+        log.Fatalf("Failed to initialize app: %v", err)
+    }
 
-	// Example 1: Create connectRPC server with auto-loaded config
-	handler := connectrpc.NewDummyHandler()
-	_, err := factory.CreateConnectRPCServer(handler)
-	if err != nil {
-		factory.GetLogger().Error("Failed to create connectRPC server", "err", err)
-		return
-	}
+    // Create context for graceful shutdown
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
 
-	// Example 2: Create connectRPC server with custom config override
-	customCfg := factory.GetConnectRPCConfig()
-	customCfg.Address = ":9090" // Override the address
-	
-	_, err = factory.CreateConnectRPCServerWithConfig(customCfg, handler)
-	if err != nil {
-		factory.GetLogger().Error("Failed to create connectRPC server with custom config", "err", err)
-		return
-	}
+    // Start all services
+    if err := application.Start(ctx); err != nil {
+        log.Fatalf("Failed to start app: %v", err)
+    }
 
-	// Start all services
-	if err := factory.StartAll(); err != nil {
-		factory.GetLogger().Error("Failed to start services", "err", err)
-		return
-	}
+    // Use injected dependencies
+    logger := application.Logger()
+    tracer := application.Tracer()
+    metrics := application.Metrics()
+    broker := application.Broker()
+    cache := application.Cache()
+    database := application.Database()
+    connectServer := application.ConnectRPCServer()
 
-	// Example: Use the factory context for microservice operations
-	go func() {
-		<-ctx.Done()
-		factory.GetLogger().Info("Context cancelled, shutting down...")
-	}()
+    // Wait for shutdown signal
+    sigChan := make(chan os.Signal, 1)
+    signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Wait for shutdown signal and gracefully stop all services
-	factory.WaitForShutdown()
+    logger.Info("User service started successfully")
+    <-sigChan
+
+    logger.Info("Shutdown signal received, stopping app...")
+    if err := application.Stop(ctx); err != nil {
+        logger.Error("Error during shutdown", "error", err)
+        os.Exit(1)
+    }
 }
 ```
 
-## Service Lifecycle
+### 2. Configuration
 
-The ServiceFactory manages the complete lifecycle of all services:
+The library uses environment variables for configuration:
 
-1. **Creation**: Services are created and registered with the factory
-2. **Starting**: `StartAll()` starts all registered services with the factory's context
-3. **Running**: Services run until shutdown is requested
-4. **Shutdown**: `StopAll()` gracefully stops all services when context is cancelled
-5. **Signal Handling**: `WaitForShutdown()` listens for SIGINT/SIGTERM and initiates graceful shutdown
+```bash
+# Application
+export APP_NAME="user-service"
+export APP_VERSION="1.0.0"
+export APP_ENV="development"
 
-## Context Management
+# Logger
+export LOGGER_LEVEL="info"
+export LOGGER_FORMAT="json"
+export LOGGER_OUTPUT="stdout"
 
-The factory provides a shared context for all services:
-- `GetContext()` returns the factory's context for use by the microservice
-- Context cancellation triggers graceful shutdown of all services
-- All services receive the same context for coordinated lifecycle management
+# Tracer
+export TRACER_TYPE="jaeger"
+export TRACER_ENDPOINT="http://jaeger:14268"
 
-## Custom Logger
+# Metrics
+export METRICS_TYPE="prometheus"
+export METRICS_PORT="9090"
 
-If you need a custom logger configuration:
+# Broker
+export BROKER_TYPE="kafka"
+export BROKER_BROKERS="kafka:9092"
 
-```go
-logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-factory := servicefactory.NewServiceFactoryWithLogger(logger)
+# Cache
+export CACHE_TYPE="redis"
+export CACHE_ADDRESS="redis:6379"
+
+# Database
+export DATABASE_TYPE="postgres"
+export DATABASE_DSN="postgres://user:pass@db:5432/mydb"
+
+# ConnectRPC
+export CONNECTRPC_ADDRESS=":8080"
 ```
 
-## Environment Variables
+## Status
 
-The factory automatically loads configuration from environment variables:
-- `CONNECTRPC_ADDRESS`: ConnectRPC server address (default: ":8080")
+This is a **skeleton implementation** with:
+- ✅ **Architecture** - Complete interface definitions and structure
+- ✅ **Configuration** - Environment-based configuration loading
+- ✅ **Factory Pattern** - Service creation factories
+- ✅ **Mock Implementations** - For testing and development
+- 🚧 **Real Implementations** - Placeholder implementations (TODO)
 
-## Testing
+## Development
 
-Run unit tests:
-```
-go test ./servicefactory -v
+### Adding New Service Implementations
+
+1. Create implementation in the appropriate package (e.g., `logger/logrus.go`)
+2. Add factory method in `factory.go`
+3. Add configuration in `config.go`
+4. Add tests
+
+### Testing
+
+```bash
+cd shared-foundation
+go test ./...
 ```
 
 ## Dependencies
+
 - [connectrpc.com/connect](https://connectrpc.com/)
 - [github.com/spf13/viper](https://github.com/spf13/viper)
-- [log/slog](https://pkg.go.dev/log/slog) 
+- [log/slog](https://pkg.go.dev/log/slog)
+
+## Next Steps
+
+1. Implement actual service providers (Jaeger, Prometheus, Redis, etc.)
+2. Add comprehensive tests
+3. Create usage examples
+4. Add documentation for each package 
