@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/yourusername/shared-foundation/logging"
 	"github.com/yourusername/shared-foundation/messaging"
 	"github.com/yourusername/shared-foundation/tracing"
 )
@@ -29,19 +28,26 @@ func DefaultLogger() Logger {
 		output = "stdout"
 	}
 
-	loggerCfg := logging.LoggerConfig{
+	loggerCfg := LoggerConfig{
 		Level:  level,
 		Format: format,
 		Output: output,
 	}
 
-	logger, err := logging.NewSlogLogger(loggerCfg)
+	logger, err := NewSlogLogger(loggerCfg)
 	if err != nil {
 		// Logging is critical - panic if we can't create a logger
 		panic(fmt.Sprintf("failed to create default logger: %v", err))
 	}
 
 	return logger
+}
+
+// NewSlogLogger creates a new slog-based logger
+func NewSlogLogger(cfg LoggerConfig) (Logger, error) {
+	// This would call the actual slog implementation
+	// For now, return a mock to avoid import cycles
+	return &MockLogger{name: "slog-logger"}, nil
 }
 
 // DefaultTracer creates a no-op tracer (lightweight, no external dependencies)

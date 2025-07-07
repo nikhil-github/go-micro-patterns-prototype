@@ -15,6 +15,12 @@ type AppConfig struct {
 
 // LoggerConfig configuration
 type LoggerConfig struct {
+	// The `mapstructure` tag is used by Viper (via the mapstructure package) to map configuration file fields
+	// to struct fields. For example, the following TOML config will map to this struct:
+	//
+	//	[logger]
+	//	type = "zap"
+	//
 	Type   string `mapstructure:"type"` // slog, logrus, zap, etc.
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
@@ -129,6 +135,9 @@ func Load() *Config {
 	viper.SetDefault("CONNECTRPC_ADDRESS", ":8080")
 
 	var cfg Config
+	// viper.Unmarshal(&cfg) populates the cfg struct with values from Viper.
+	// If an environment variable is set, it overrides the default set by viper.SetDefault.
+	// If no environment variable is set, the default value remains in effect.
 	viper.Unmarshal(&cfg)
 
 	return &cfg

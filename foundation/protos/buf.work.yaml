@@ -1,0 +1,4 @@
+version: v1
+directories:
+  - user/v1
+  - order/v1 

@@ -16,12 +16,15 @@ func main() {
 	os.Setenv("LOG_FORMAT", "json")
 	os.Setenv("LOG_OUTPUT", "stdout")
 
+	cfg := foundation.Load()
+
 	// Create app with no options - uses all defaults!
-	app := foundation.New("user-service", "1.0.0", foundation.WithSlogLogger(foundation.LoggerConfig{
-		Level:  "debug",
-		Format: "json",
-		Output: "stdout",
-	}))
+	// Or with specific config
+	app := foundation.New("service", "1.0.0",
+		foundation.WithSlogLogger(cfg.Logger),
+		foundation.WithMockTracer(),
+		foundation.WithMockMetrics(),
+	)
 
 	// Initialize (sets up lifecycle management)
 	if err := app.Init(); err != nil {
