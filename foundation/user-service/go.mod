@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/yourusername/shared-foundation v0.0.0
 	google.golang.org/protobuf v1.36.1
+	github.com/yourusername/microservices-protos v0.0.0
 )
 
 require (
@@ -28,3 +29,6 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/yourusername/shared-foundation => ../shared-foundation
+replace github.com/yourusername/microservices-protos => ../protos
