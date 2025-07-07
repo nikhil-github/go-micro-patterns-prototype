@@ -23,4 +23,4 @@ message CreateUserResponse {
   string email = 2;
   string name = 3;
   string created_at = 4;
-} 
+}
