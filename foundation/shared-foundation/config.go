@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/yourusername/shared-foundation/core"
 )
 
 // AppConfig holds application metadata
@@ -14,18 +15,6 @@ type AppConfig struct {
 }
 
 // LoggerConfig configuration
-type LoggerConfig struct {
-	// The `mapstructure` tag is used by Viper (via the mapstructure package) to map configuration file fields
-	// to struct fields. For example, the following TOML config will map to this struct:
-	//
-	//	[logger]
-	//	type = "zap"
-	//
-	Type   string `mapstructure:"type"` // slog, logrus, zap, etc.
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"`
-	Output string `mapstructure:"output"`
-}
 
 // TracerConfig configuration
 type TracerConfig struct {
@@ -78,7 +67,7 @@ type ConnectRPCConfig struct {
 // Config holds all configuration
 type Config struct {
 	App              AppConfig              `mapstructure:"app"`
-	Logger           LoggerConfig           `mapstructure:"logger"`
+	Logger           core.LoggerConfig      `mapstructure:"logger"`
 	Tracer           TracerConfig           `mapstructure:"tracer"`
 	Metrics          MetricsConfig          `mapstructure:"metrics"`
 	ServiceDiscovery ServiceDiscoveryConfig `mapstructure:"service_discovery"`

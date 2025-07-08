@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
+	"github.com/yourusername/shared-foundation/core"
 )
 
 // LogrusLogger implements the Logger interface using logrus
@@ -15,7 +16,7 @@ type LogrusLogger struct {
 }
 
 // NewLogrusLogger creates a new logrus-based logger
-func NewLogrusLogger(cfg LoggerConfig) (Logger, error) {
+func NewLogrusLogger(cfg core.LoggerConfig) (Logger, error) {
 	logger := logrus.New()
 
 	// Determine output
@@ -88,19 +89,19 @@ func (l *LogrusLogger) Name() string {
 
 // Logger interface implementation
 func (l *LogrusLogger) Debug(msg string, args ...any) {
-	l.logger.Debug(msg, args...)
+	// l.logger.Debug(msg, args...)
 }
 
 func (l *LogrusLogger) Info(msg string, args ...any) {
-	l.logger.Info(msg, args...)
+	// l.logger.Info(msg, args...)
 }
 
 func (l *LogrusLogger) Warn(msg string, args ...any) {
-	l.logger.Warn(msg, args...)
+	// l.logger.Warn(msg, args...)
 }
 
 func (l *LogrusLogger) Error(msg string, args ...any) {
-	l.logger.Error(msg, args...)
+	// l.logger.Error(msg, args...)
 }
 
 func (l *LogrusLogger) With(args ...any) Logger {
@@ -113,7 +114,7 @@ func (l *LogrusLogger) With(args ...any) Logger {
 	}
 
 	return &LogrusLogger{
-		logger: l.logger.WithFields(fields),
-		name:   l.name,
+		//	logger: l.logger.WithFields(fields),
+		name: l.name,
 	}
 }

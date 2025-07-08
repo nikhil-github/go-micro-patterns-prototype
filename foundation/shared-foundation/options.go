@@ -1,6 +1,7 @@
 package foundation
 
 import (
+	"github.com/yourusername/shared-foundation/core"
 	"github.com/yourusername/shared-foundation/logging"
 )
 
@@ -15,9 +16,9 @@ func WithLogger(logger Logger) AppOption {
 }
 
 // WithSlogLogger creates a slog logger with the given config
-func WithSlogLogger(cfg LoggerConfig) AppOption {
+func WithSlogLogger(cfg core.LoggerConfig) AppOption {
 	return func(a *App) {
-		loggerCfg := logging.LoggerConfig{
+		loggerCfg := core.LoggerConfig{
 			Level:  cfg.Level,
 			Format: cfg.Format,
 			Output: cfg.Output,
@@ -29,9 +30,9 @@ func WithSlogLogger(cfg LoggerConfig) AppOption {
 }
 
 // WithLogrusLogger creates a logrus logger with the given config
-func WithLogrusLogger(cfg LoggerConfig) AppOption {
+func WithLogrusLogger(cfg core.LoggerConfig) AppOption {
 	return func(a *App) {
-		loggerCfg := logging.LoggerConfig{
+		loggerCfg := core.LoggerConfig{
 			Level:  cfg.Level,
 			Format: cfg.Format,
 			Output: cfg.Output,

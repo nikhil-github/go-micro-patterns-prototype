@@ -1,7 +1,6 @@
 package logging
 
 import (
-	foundation "github.com/yourusername/shared-foundation"
 	"github.com/yourusername/shared-foundation/core"
 )
 
@@ -15,6 +14,6 @@ type Logger interface {
 	With(args ...any) Logger
 }
 
-func (l Logger) WithSlogLogger(config foundation.LoggerConfig) any {
+func WithSlogLogger(config core.LoggerConfig) any {
 	panic("unimplemented")
 }

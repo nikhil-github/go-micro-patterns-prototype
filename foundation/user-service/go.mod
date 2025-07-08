@@ -5,9 +5,8 @@ go 1.24.3
 require (
 	github.com/bufbuild/connect-go v1.10.0
 	github.com/google/uuid v1.6.0
-	github.com/yourusername/shared-foundation v0.0.0
-	google.golang.org/protobuf v1.36.1
 	github.com/yourusername/microservices-protos v0.0.0
+	github.com/yourusername/shared-foundation v0.0.0
 )
 
 require (
@@ -27,8 +26,10 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
+	google.golang.org/protobuf v1.36.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/yourusername/shared-foundation => ../shared-foundation
+
 replace github.com/yourusername/microservices-protos => ../protos

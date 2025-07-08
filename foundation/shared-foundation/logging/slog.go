@@ -5,6 +5,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+
+	"github.com/yourusername/shared-foundation/core"
 )
 
 // SlogLogger implements the Logger interface using Go's slog package
@@ -14,14 +16,10 @@ type SlogLogger struct {
 }
 
 // LoggerConfig configuration for the logger
-type LoggerConfig struct {
-	Level  string
-	Format string
-	Output string
-}
 
 // NewSlogLogger creates a new slog-based logger
-func NewSlogLogger(cfg LoggerConfig) (Logger, error) {
+
+func NewSlogLogger(cfg core.LoggerConfig) (Logger, error) {
 	var handler slog.Handler
 
 	// Determine output

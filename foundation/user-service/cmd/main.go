@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	userv1connect "github.com/yourusername/microservices-protos/gen/userv1connect"
+	userv1connect "github.com/yourusername/microservices-protos/gen/user/v1/userv1connect"
 	foundation "github.com/yourusername/shared-foundation"
 	"github.com/yourusername/user-service/internal/user"
 )

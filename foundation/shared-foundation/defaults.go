@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/yourusername/shared-foundation/core"
 	"github.com/yourusername/shared-foundation/messaging"
 	"github.com/yourusername/shared-foundation/tracing"
 )
@@ -28,7 +29,7 @@ func DefaultLogger() Logger {
 		output = "stdout"
 	}
 
-	loggerCfg := LoggerConfig{
+	loggerCfg := core.LoggerConfig{
 		Level:  level,
 		Format: format,
 		Output: output,
@@ -44,7 +45,7 @@ func DefaultLogger() Logger {
 }
 
 // NewSlogLogger creates a new slog-based logger
-func NewSlogLogger(cfg LoggerConfig) (Logger, error) {
+func NewSlogLogger(cfg core.LoggerConfig) (Logger, error) {
 	// This would call the actual slog implementation
 	// For now, return a mock to avoid import cycles
 	return &MockLogger{name: "slog-logger"}, nil
