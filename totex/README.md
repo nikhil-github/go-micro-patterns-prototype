@@ -1,157 +1,207 @@
-# Totex - Go Microservices Shared Library
+# Totex - Go Microservices Foundation Library
 
-This repository contains a Go-idiomatic shared library for microservices with infrastructure components. The library provides a comprehensive totex for building microservices with standardized logging, tracing, metrics, messaging, caching, and database access.
+A minimal, production-ready Go library for microservice lifecycle management with cross-cutting concerns.
+
+## Overview
+
+The foundation library provides a clean, simple way to bootstrap microservices with:
+- **Lifecycle Management** - Start/stop coordination for servers
+- **Cross-cutting Concerns** - Logging, metrics, tracing
+- **Auto-configured Servers** - ConnectRPC servers created from environment variables
+- **Graceful Shutdown** - Proper resource cleanup
+- **Dependency Injection** - Common services for business logic
 
 ## Structure
-
-The library is organized in a Go-idiomatic structure:
 
 ```
 totex/
 ├── foundation/              # Main shared library
+│   ├── app.go              # Main App orchestrator
+│   ├── config.go           # Configuration management
+│   ├── connectrpc/         # ConnectRPC server implementation
+│   │   └── server.go
+│   ├── logging/            # Logger interfaces and implementations
+│   │   ├── logger.go       # Interface
+│   │   └── slog.go         # Default implementation
+│   ├── metrics/            # Metrics interfaces
+│   │   └── metrics.go      # Interface + default implementation
+│   ├── tracing/            # Tracing interfaces
+│   │   └── tracer.go       # Interface + default implementation
+│   ├── examples/           # Usage examples
+│   │   └── example/        # Comprehensive example
 │   ├── go.mod
-│   ├── README.md
-│   ├── types.go                    # All interfaces and types
-│   ├── config.go                   # Configuration management
-│   ├── app.go                      # Main App orchestrator
-│   ├── factory.go                  # Service factories
-│   ├── mocks.go                    # Mock implementations
-│   ├── logger/                     # Logger implementations
-│   ├── tracer/                     # Tracer implementations
-│   ├── metrics/                    # Metrics implementations
-│   ├── broker/                     # Message broker implementations
-│   ├── cache/                      # Cache implementations
-│   ├── database/                   # Database implementations
-│   ├── connectrpc/                 # ConnectRPC implementations
-│   └── examples/                   # Usage examples
-└── README.md                       # This file
+│   └── README.md
+├── schema/                 # Protocol Buffers and ConnectRPC
+│   ├── user/v1/           # User service definitions
+│   ├── order/v1/          # Order service definitions
+│   └── gen/               # Generated Go code
+├── user-service/          # Example microservice
+│   ├── cmd/main.go
+│   └── internal/user/
+├── go.mod                 # Workspace configuration
+└── README.md              # This file
 ```
-
-## Features
-
-- **Go-Idiomatic Structure**: Follows standard Go conventions and patterns
-- **Interface-Based Design**: Clean abstractions for all infrastructure components
-- **Factory Pattern**: Easy service creation and configuration
-- **Environment Configuration**: Automatic config loading via environment variables
-- **Graceful Shutdown**: Coordinated service lifecycle management
-- **Mock Implementations**: Ready for testing and development
-- **Extensible Architecture**: Easy to add new service implementations
 
 ## Quick Start
 
-### 1. Use the Shared Library
+### 1. Create a Microservice
 
 ```go
 package main
 
 import (
     "context"
-    "log"
     "os"
     "os/signal"
     "syscall"
 
-    "github.com/yourusername/foundation"
+    foundation "github.com/yourusername/foundation"
 )
 
 func main() {
-    // Create app with name and version
-    application := totex.New("user-service", "1.0.0")
+    // Configure server via environment variables
+    os.Setenv("SERVER_NAME", "my-service-server")
+    os.Setenv("SERVER_ADDR", ":8080")
 
-    // Initialize all services
-    if err := application.Init(); err != nil {
-        log.Fatalf("Failed to initialize app: %v", err)
+    // Create the app (factory method)
+    app := foundation.New("my-service", "1.0.0")
+
+    // Get the auto-created ConnectRPC server and register handlers
+    connectServer := app.ConnectRPC()
+    connectServer.RegisterHandler("/my.MyService/", myHandler)
+
+    // Start all servers
+    if err := app.Start(context.Background()); err != nil {
+        app.Logger().Error("Failed to start app", "error", err)
+        os.Exit(1)
     }
 
-    // Create context for graceful shutdown
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-
-    // Start all services
-    if err := application.Start(ctx); err != nil {
-        log.Fatalf("Failed to start app: %v", err)
-    }
-
-    // Use injected dependencies
-    logger := application.Logger()
-    tracer := application.Tracer()
-    metrics := application.Metrics()
-    broker := application.Broker()
-    cache := application.Cache()
-    database := application.Database()
-    connectServer := application.ConnectRPCServer()
-
-    // Wait for shutdown signal
+    // Graceful shutdown
     sigChan := make(chan os.Signal, 1)
     signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-    logger.Info("User service started successfully")
     <-sigChan
 
-    logger.Info("Shutdown signal received, stopping app...")
-    if err := application.Stop(ctx); err != nil {
-        logger.Error("Error during shutdown", "error", err)
+    if err := app.Stop(context.Background()); err != nil {
+        app.Logger().Error("Error during shutdown", "error", err)
         os.Exit(1)
     }
 }
 ```
 
-### 2. Configuration
+### 2. Use Injected Dependencies
+
+```go
+// Get injected dependencies
+logger := app.Logger()
+tracer := app.Tracer()
+metrics := app.Metrics()
+
+// Use in business logic
+func (h *MyHandler) ProcessRequest(ctx context.Context, data string) error {
+    // Start tracing
+    span := h.Tracer.StartSpan("process_request")
+    defer span.Finish()
+
+    // Record metrics
+    h.Metrics.Counter("requests_processed", 1, "service", "my-service")
+
+    // Log operation
+    h.Logger.Info("Processing request", "data", data)
+    
+    return nil
+}
+```
+
+## Configuration
 
 The library uses environment variables for configuration:
 
 ```bash
-# Application
-export APP_NAME="user-service"
-export APP_VERSION="1.0.0"
-export APP_ENV="development"
+# Server configuration
+export SERVER_NAME="my-service-server"
+export SERVER_ADDR=":8080"
+export SERVER_TYPE="connectrpc"     # connectrpc (default)
 
-# Logger
-export LOGGER_LEVEL="info"
-export LOGGER_FORMAT="json"
-export LOGGER_OUTPUT="stdout"
+# Logger configuration
+export LOGGER_TYPE="slog"           # slog, logrus
+export LOGGER_LEVEL="info"          # debug, info, warn, error
+export LOGGER_FORMAT="text"         # text, json
+export LOGGER_OUTPUT="stdout"       # stdout, stderr, file path
 
-# Tracer
-export TRACER_TYPE="jaeger"
-export TRACER_ENDPOINT="http://jaeger:14268"
+# Tracer configuration
+export TRACER_TYPE="noop"           # noop, jaeger, zipkin
+export TRACER_ENDPOINT=""           # tracer endpoint URL
 
-# Metrics
-export METRICS_TYPE="prometheus"
-export METRICS_PORT="9090"
+# Metrics configuration
+export METRICS_TYPE="noop"          # noop, prometheus, statsd
+export METRICS_PORT="9090"          # metrics port
+```
 
-# Broker
-export BROKER_TYPE="kafka"
-export BROKER_BROKERS="kafka:9092"
+## Key Features
 
-# Cache
-export CACHE_TYPE="redis"
-export CACHE_ADDRESS="redis:6379"
+### 1. **Service Factory Method**
+- `foundation.New(name, version string) *App` - Creates app with all dependencies
+- `app.ConnectRPC()` - Direct access to ConnectRPC server
+- `app.Logger()`, `app.Metrics()`, `app.Tracer()` - Cross-cutting dependencies
 
-# Database
-export DATABASE_TYPE="postgres"
-export DATABASE_DSN="postgres://user:pass@db:5432/mydb"
+### 2. **Auto-configured Servers**
+- ConnectRPC servers created automatically from environment variables
+- No manual server creation for common use cases
+- Easy to extend with additional server types
 
-# ConnectRPC
-export CONNECTRPC_ADDRESS=":8080"
+### 3. **Lifecycle Management**
+- Coordinated start/stop of all servers
+- Graceful shutdown with proper resource cleanup
+- Error handling and logging throughout
+
+### 4. **Clean Architecture**
+- Default implementations in their respective packages
+- Clear separation of concerns
+- Easy to extend and maintain
+
+## Examples
+
+### User Service
+See `user-service/` for a complete example microservice using the foundation library.
+
+### Foundation Examples
+See `foundation/examples/` for comprehensive examples showing:
+- Foundation initialization
+- ConnectRPC server integration
+- Dependency injection
+- Graceful shutdown
+- Business logic implementation
+
+```bash
+cd foundation/examples/example
+go run main.go
 ```
 
 ## Status
 
-This is a **skeleton implementation** with:
-- ✅ **Architecture** - Complete interface definitions and structure
-- ✅ **Configuration** - Environment-based configuration loading
-- ✅ **Factory Pattern** - Service creation factories
-- ✅ **Mock Implementations** - For testing and development
-- 🚧 **Real Implementations** - Placeholder implementations (TODO)
+This is a **working implementation** with:
+- ✅ **Core Architecture** - Complete foundation with lifecycle management
+- ✅ **Auto-configured Servers** - ConnectRPC servers created from environment variables
+- ✅ **Cross-cutting Concerns** - Logging, metrics, tracing
+- ✅ **Examples** - Working examples and documentation
+- ✅ **Graceful Shutdown** - Proper resource cleanup
+- ✅ **Clean Architecture** - Default implementations in their respective packages
+- 🚧 **Advanced Features** - Additional server types, real implementations (TODO)
 
 ## Development
 
-### Adding New Service Implementations
+### Building
 
-1. Create implementation in the appropriate package (e.g., `logger/logrus.go`)
-2. Add factory method in `factory.go`
-3. Add configuration in `config.go`
-4. Add tests
+```bash
+# Build foundation library
+cd foundation && go build .
+
+# Build user service
+cd user-service && go build cmd/main.go
+
+# Build examples
+cd foundation/examples/example && go build main.go
+```
 
 ### Testing
 
@@ -162,13 +212,43 @@ go test ./...
 
 ## Dependencies
 
-- [connectrpc.com/connect](https://connectrpc.com/)
-- [github.com/spf13/viper](https://github.com/spf13/viper)
-- [log/slog](https://pkg.go.dev/log/slog)
+- [connectrpc.com/connect](https://connectrpc.com/) - ConnectRPC implementation
+- [log/slog](https://pkg.go.dev/log/slog) - Structured logging
+- [github.com/sirupsen/logrus](https://github.com/sirupsen/logrus) - Alternative logger
+- [github.com/spf13/viper](https://github.com/spf13/viper) - Configuration management
+
+## Architecture Benefits
+
+### 1. **Simplified Setup**
+- Servers created automatically from configuration
+- Minimal boilerplate for common use cases
+- Environment-based configuration
+- Name and version as simple arguments
+
+### 2. **Separation of Concerns**
+- Foundation handles cross-cutting concerns only
+- Transport layer is separate and optional
+- Business logic is clean and focused
+
+### 3. **Flexibility**
+- Support for multiple transport protocols
+- Configurable server addresses and settings
+- Easy to extend with new server types
+
+### 4. **Testability**
+- Clear interfaces for mocking
+- Separation enables unit testing
+- Mock implementations provided
+
+### 5. **Maintainability**
+- Small, focused modules
+- Clear responsibilities
+- Easy to understand and extend
 
 ## Next Steps
 
-1. Implement actual service providers (Jaeger, Prometheus, Redis, etc.)
-2. Add comprehensive tests
-3. Create usage examples
-4. Add documentation for each package
+1. **Real Implementations** - Replace noop implementations with real ones (Jaeger, Prometheus, etc.)
+2. **Additional Server Types** - gRPC, WebSocket, HTTP servers
+3. **Health Checks** - Auto-created health check servers
+4. **Service Discovery** - Auto-registration with service discovery
+5. **Configuration Validation** - Validate environment variables at startup
