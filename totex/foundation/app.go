@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -22,6 +23,14 @@ type ConnectRPCServer interface {
 	Name() string
 }
 
+// Service represents a lifecycle-managed component
+// (e.g., servers) that can be started and stopped.
+type Service interface {
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
+	Name() string
+}
+
 // App represents the main application with all services
 type App struct {
 	logger           logging.Logger
@@ -29,14 +38,10 @@ type App struct {
 	metrics          metrics.Metrics
 	connectRPCServer ConnectRPCServer
 
-	services []interface {
-		Start(ctx context.Context) error
-		Stop(ctx context.Context) error
-		Name() string
-	}
-	ctx    context.Context
-	cancel context.CancelFunc
-	mu     sync.Mutex
+	services []Service
+	ctx      context.Context
+	cancel   context.CancelFunc
+	mu       sync.Mutex
 }
 
 // Config holds configuration for logger and other services
@@ -87,12 +92,8 @@ func NewWithConfig(cfg Config) *App {
 		ctx:              ctx,
 		cancel:           cancel,
 	}
-	app.services = []interface {
-		Start(context.Context) error
-		Stop(context.Context) error
-		Name() string
-	}{
-		logger, metrics, tracer, server,
+	app.services = []Service{
+		server,
 	}
 	return app
 }
@@ -230,51 +231,59 @@ func (s *NoopSpan) SetError(err error)       {}
 func (s *NoopSpan) Finish()                  {}
 func (s *NoopSpan) Context() context.Context { return context.Background() }
 
-// NewDefaultConnectRPCServer returns a stub connectrpc server implementation
-func NewDefaultConnectRPCServer(logger Logger) ConnectRPCServer {
-	return &DummyConnectRPCServer{name: "default-connectrpc-server", logger: logger}
+// NewDefaultConnectRPCServer returns a real connectrpc server implementation
+func NewDefaultConnectRPCServer(logger logging.Logger) ConnectRPCServer {
+	return &HTTPConnectRPCServer{
+		name:   "connectrpc-server",
+		logger: logger,
+		mux:    http.NewServeMux(),
+		addr:   ":8080",
+	}
 }
 
-type DummyConnectRPCServer struct {
+type HTTPConnectRPCServer struct {
 	name   string
-	logger Logger
+	logger logging.Logger
+	mux    *http.ServeMux
+	addr   string
+	server *http.Server
 }
 
-func (s *DummyConnectRPCServer) Start(ctx context.Context) error {
-	s.logger.Info("ConnectRPC server started", "name", s.name)
+func (s *HTTPConnectRPCServer) RegisterHandler(path string, handler interface{}) error {
+	h, ok := handler.(http.Handler)
+	if !ok {
+		s.logger.Error("Handler does not implement http.Handler", "path", path)
+		return fmt.Errorf("handler for %s does not implement http.Handler", path)
+	}
+	s.mux.Handle(path, h)
+	s.logger.Info("Registered handler", "path", path)
 	return nil
 }
-func (s *DummyConnectRPCServer) Stop(ctx context.Context) error {
-	s.logger.Info("ConnectRPC server stopped", "name", s.name)
+
+func (s *HTTPConnectRPCServer) GetHandler() interface{} {
+	return s.mux
+}
+
+func (s *HTTPConnectRPCServer) Start(ctx context.Context) error {
+	s.logger.Info("Starting ConnectRPC HTTP server", "address", s.addr)
+	s.server = &http.Server{
+		Addr:    s.addr,
+		Handler: s.mux,
+	}
+	go func() {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("HTTP server error", "error", err)
+		}
+	}()
 	return nil
 }
-func (s *DummyConnectRPCServer) Name() string { return s.name }
 
-// --- gRPC Server Factory Example ---
-
-// GrpcServer is a minimal gRPC server interface
-type GrpcServer interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	Name() string
-}
-
-// NewDefaultGrpcServer returns a stub gRPC server implementation
-func NewDefaultGrpcServer(logger Logger) GrpcServer {
-	return &DummyGrpcServer{name: "default-grpc-server", logger: logger}
-}
-
-type DummyGrpcServer struct {
-	name   string
-	logger Logger
-}
-
-func (s *DummyGrpcServer) Start(ctx context.Context) error {
-	s.logger.Info("gRPC server started", "name", s.name)
+func (s *HTTPConnectRPCServer) Stop(ctx context.Context) error {
+	s.logger.Info("Stopping ConnectRPC HTTP server", "address", s.addr)
+	if s.server != nil {
+		return s.server.Shutdown(ctx)
+	}
 	return nil
 }
-func (s *DummyGrpcServer) Stop(ctx context.Context) error {
-	s.logger.Info("gRPC server stopped", "name", s.name)
-	return nil
-}
-func (s *DummyGrpcServer) Name() string { return s.name }
+
+func (s *HTTPConnectRPCServer) Name() string { return s.name }

@@ -11,6 +11,7 @@ import (
 	strings "strings"
 
 	connect_go "github.com/bufbuild/connect-go"
+	v1 "github.com/yourusername/schema/gen/user/v1"
 )
 
 // This is a compile-time assertion to ensure that this generated file and the connect package are

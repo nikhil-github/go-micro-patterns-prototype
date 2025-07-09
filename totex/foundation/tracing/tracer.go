@@ -9,6 +9,7 @@ type Tracer interface {
 	StartSpan(name string, opts ...SpanOption) Span
 	Inject(span Span, format interface{}, carrier interface{}) error
 	Extract(format interface{}, carrier interface{}) (Span, error)
+	Name() string
 }
 
 // Span represents a tracing span

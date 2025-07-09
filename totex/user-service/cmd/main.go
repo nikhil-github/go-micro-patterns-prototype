@@ -1,9 +1,10 @@
 package main
 
 import (
-	"log"
-	"net/http"
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	foundation "github.com/yourusername/foundation"
 	userv1connect "github.com/yourusername/schema/gen/user/v1/userv1connect"
@@ -11,32 +12,43 @@ import (
 )
 
 func main() {
-	cfg := foundation.Load()
-
-	app := foundation.New("user-service", "1.0.0",
-		foundation.WithSlogLogger(cfg.Logger),
-	)
-	if err := app.Init(); err != nil {
-		log.Fatalf("Failed to initialize app: %v", err)
-	}
+	app := foundation.New()
 	logger := app.Logger()
 
 	// User service implementation (no DB)
 	userSvc := user.NewService()
-
 	path, handler := userv1connect.NewUserServiceHandler(userSvc)
 
-	mux := http.NewServeMux()
-	mux.Handle(path, handler)
-
-	server := &http.Server{
-		Addr:    cfg.ConnectRPC.Address,
-		Handler: mux,
-	}
-
-	logger.Info("Starting user-service", "address", cfg.ConnectRPC.Address)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("Server error", "error", err)
+	// Try to register handler using the ConnectRPCServer interface
+	server := app.ConnectRPCServer()
+	if register, ok := interface{}(server).(interface {
+		RegisterHandler(string, interface{}) error
+	}); ok {
+		if err := register.RegisterHandler(path, handler); err != nil {
+			logger.Error("Failed to register ConnectRPC handler", "error", err)
+			os.Exit(1)
+		}
+	} else {
+		logger.Error("ConnectRPCServer does not support RegisterHandler")
 		os.Exit(1)
 	}
+
+	// Start all services (including HTTP server)
+	if err := app.Start(context.Background()); err != nil {
+		logger.Error("Failed to start app", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("User service started successfully")
+
+	// Graceful shutdown on SIGINT/SIGTERM
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigChan
+	logger.Info("Shutdown signal received", "signal", sig)
+	if err := app.Stop(context.Background()); err != nil {
+		logger.Error("Error during shutdown", "error", err)
+		os.Exit(1)
+	}
+	logger.Info("Shutdown complete")
 }

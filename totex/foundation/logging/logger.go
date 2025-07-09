@@ -7,4 +7,5 @@ type Logger interface {
 	Warn(msg string, args ...any)
 	Error(msg string, args ...any)
 	With(args ...any) Logger
+	Name() string
 }

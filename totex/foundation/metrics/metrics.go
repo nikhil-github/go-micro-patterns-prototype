@@ -6,4 +6,5 @@ type Metrics interface {
 	Gauge(name string, value float64, labels ...string)
 	Histogram(name string, value float64, labels ...string)
 	Summary(name string, value float64, labels ...string)
+	Name() string
 }

@@ -21,16 +21,16 @@ func LoadConfig() Config {
 }
 
 type Server struct {
-	config  Config
-	handler *connect.Handler
-	logger  *slog.Logger
+	config   Config
+	handlers map[string]interface{}
+	logger   *slog.Logger
 }
 
-func NewServer(cfg Config, handler *connect.Handler, logger *slog.Logger) *Server {
+func NewServer(cfg Config, logger *slog.Logger) *Server {
 	return &Server{
-		config:  cfg,
-		handler: handler,
-		logger:  logger,
+		config:   cfg,
+		handlers: make(map[string]interface{}),
+		logger:   logger,
 	}
 }
 
@@ -50,6 +50,16 @@ func (s *Server) Name() string {
 	return "connectrpc-server"
 }
 
+func (s *Server) RegisterHandler(path string, handler interface{}) error {
+	s.handlers[path] = handler
+	s.logger.Info("Registered handler", "path", path)
+	return nil
+}
+
+func (s *Server) GetHandler() interface{} {
+	return s.handlers
+}
+
 func NewDummyHandler() *connect.Handler {
 	return connect.NewUnaryHandler("/test.TestService/TestMethod", func(ctx context.Context, req *connect.Request[any]) (*connect.Response[any], error) {
 		return connect.NewResponse[any](nil), nil
@@ -58,6 +68,9 @@ func NewDummyHandler() *connect.Handler {
 
 // ConnectRPCServer interface for gRPC/Connect-RPC server
 type ConnectRPCServer interface {
+	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
+	Name() string
 	RegisterHandler(path string, handler interface{}) error
-	GetHandler() interface{} // Returns the underlying handler for registration
+	GetHandler() interface{}
 }

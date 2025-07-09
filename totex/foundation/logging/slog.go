@@ -2,9 +2,7 @@ package logging
 
 import (
 	"context"
-	"io"
 	"log/slog"
-	"os"
 )
 
 // SlogLogger implements the Logger interface using Go's slog package
@@ -17,48 +15,48 @@ type SlogLogger struct {
 
 // NewSlogLogger creates a new slog-based logger
 
-func NewSlogLogger(cfg core.LoggerConfig) (Logger, error) {
-	var handler slog.Handler
+// func NewSlogLogger(cfg LoggerConfig) (Logger, error) {
+// 	var handler slog.Handler
 
-	// Determine output
-	var output io.Writer
-	switch cfg.Output {
-	case "stderr":
-		output = os.Stderr
-	case "stdout", "":
-		output = os.Stdout
-	default:
-		// Try to open file
-		if file, err := os.OpenFile(cfg.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666); err == nil {
-			output = file
-		} else {
-			output = os.Stdout // fallback to stdout
-		}
-	}
+// 	// Determine output
+// 	var output io.Writer
+// 	switch cfg.Output {
+// 	case "stderr":
+// 		output = os.Stderr
+// 	case "stdout", "":
+// 		output = os.Stdout
+// 	default:
+// 		// Try to open file
+// 		if file, err := os.OpenFile(cfg.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666); err == nil {
+// 			output = file
+// 		} else {
+// 			output = os.Stdout // fallback to stdout
+// 		}
+// 	}
 
-	// Determine format and level
-	level := parseLogLevel(cfg.Level)
-	switch cfg.Format {
-	case "json":
-		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{
-			Level: level,
-		})
-	case "text", "":
-		handler = slog.NewTextHandler(output, &slog.HandlerOptions{
-			Level: level,
-		})
-	default:
-		// fallback to text format
-		handler = slog.NewTextHandler(output, &slog.HandlerOptions{
-			Level: level,
-		})
-	}
+// 	// Determine format and level
+// 	level := parseLogLevel(cfg.Level)
+// 	switch cfg.Format {
+// 	case "json":
+// 		handler = slog.NewJSONHandler(output, &slog.HandlerOptions{
+// 			Level: level,
+// 		})
+// 	case "text", "":
+// 		handler = slog.NewTextHandler(output, &slog.HandlerOptions{
+// 			Level: level,
+// 		})
+// 	default:
+// 		// fallback to text format
+// 		handler = slog.NewTextHandler(output, &slog.HandlerOptions{
+// 			Level: level,
+// 		})
+// 	}
 
-	return &SlogLogger{
-		logger: slog.New(handler),
-		name:   "slog-logger",
-	}, nil
-}
+// 	return &SlogLogger{
+// 		logger: slog.New(handler),
+// 		name:   "slog-logger",
+// 	}, nil
+// }
 
 // parseLogLevel converts string level to slog.Level
 func parseLogLevel(level string) slog.Level {
