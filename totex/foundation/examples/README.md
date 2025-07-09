@@ -1,57 +1,62 @@
-# Examples
+# Foundation Examples
 
-This directory contains example microservices that demonstrate how to use the foundation library.
+This directory contains examples demonstrating how to use the foundation library.
 
-## Available Examples
+## Example
 
-### demo-service
-A simple service that demonstrates basic usage of the foundation library.
+The `example/` directory contains a comprehensive example showing:
 
-```bash
-cd demo-service
-go run main.go
-```
+- **Basic foundation setup** with default configuration
+- **ConnectRPC server integration** with lifecycle management
+- **Dependency injection** of logger, tracer, and metrics
+- **Graceful shutdown** handling
+- **Business logic** demonstrating how to use the injected dependencies
 
-### user-service
-A more comprehensive example showing how to use all the injected dependencies (logger, tracer, metrics, broker, cache, database, ConnectRPC).
+### Key Features Demonstrated
 
-```bash
-cd user-service
-go run main.go
-```
-
-## Running Examples
-
-Each example is a separate Go module. To run an example:
-
-1. Navigate to the example directory
-2. Run the service:
-   ```bash
-   go run main.go
+1. **Foundation Initialization**
+   ```go
+   app := foundation.New()
    ```
 
-## Configuration
+2. **Server Lifecycle Management**
+   ```go
+   server := connectrpc.NewServer("example-server", ":8080", logger)
+   app.AddServer(server)
+   ```
 
-The examples use environment variables for configuration. You can set them before running:
+3. **Dependency Injection**
+   ```go
+   logger := app.Logger()
+   tracer := app.Tracer()
+   metrics := app.Metrics()
+   ```
+
+4. **Graceful Shutdown**
+   ```go
+   sigChan := make(chan os.Signal, 1)
+   signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+   <-sigChan
+   app.Stop(ctx)
+   ```
+
+### Running the Example
 
 ```bash
-export APP_NAME="demo-service"
-export APP_VERSION="1.0.0"
-export LOGGER_LEVEL="info"
-export LOGGER_FORMAT="json"
+cd example
 go run main.go
 ```
 
-## Expected Output
+The example will start a ConnectRPC server on port 8080 and demonstrate proper lifecycle management with graceful shutdown.
 
-When running an example, you should see:
-- Service initialization messages
-- "Service started successfully" message
-- Graceful shutdown when you press Ctrl+C
+## Usage Pattern
 
-## Note
+This example demonstrates the recommended pattern for using the foundation library:
 
-These examples use mock implementations of the infrastructure services. In a real environment, you would:
-1. Implement actual service providers (Jaeger, Prometheus, Redis, etc.)
-2. Configure real infrastructure endpoints
-3. Handle actual business logic
+1. **Create the app** with default or custom configuration
+2. **Add servers** to the app's lifecycle management
+3. **Start all servers** with proper error handling
+4. **Handle graceful shutdown** on system signals
+5. **Use injected dependencies** in business logic
+
+This pattern ensures proper resource management, observability, and graceful shutdown for microservices.

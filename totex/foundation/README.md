@@ -1,165 +1,186 @@
-# Shared Foundation Library
+# Foundation Library
 
-A Go-idiomatic shared library for microservices with infrastructure components.
+A Go-idiomatic shared library for microservices with cross-cutting concerns and lifecycle management.
+
+## Overview
+
+The foundation library provides:
+- **Cross-cutting concerns**: Logging, metrics, tracing, configuration
+- **Lifecycle management**: Start/stop coordination for servers
+- **Dependency injection**: Common services for business logic
+- **Graceful shutdown**: Proper resource cleanup
 
 ## Structure
 
 ```
 foundation/
-├── go.mod
-├── go.sum
-├── README.md
-├── types.go                        # All interfaces and types in one file
-├── config.go                       # Configuration
 ├── app.go                          # Main App orchestrator
-├── factory.go                      # Service factories
-├── mocks.go                        # Mock implementations for testing
-├── logger/                         # Logger package
+├── config.go                       # Configuration management
+├── connectrpc/                     # ConnectRPC server implementation
+│   └── server.go
+├── logging/                        # Logger interfaces and implementations
+│   ├── logger.go
 │   ├── slog.go
-│   ├── logrus.go
-│   └── slog_test.go
-├── tracer/                         # Tracer package
-│   ├── jaeger.go
-│   ├── zipkin.go
-│   └── jaeger_test.go
-├── metrics/                        # Metrics package
-│   ├── prometheus.go
-│   ├── statsd.go
-│   └── prometheus_test.go
-├── broker/                         # Broker package
-│   ├── kafka.go
-│   ├── rabbitmq.go
-│   ├── nats.go
-│   └── kafka_test.go
-├── cache/                          # Cache package
-│   ├── redis.go
-│   ├── memcached.go
-│   └── redis_test.go
-├── database/                       # Database package
-│   ├── postgres.go
-│   ├── mysql.go
-│   └── postgres_test.go
-├── connectrpc/                     # ConnectRPC package
-│   ├── server.go
-│   └── server_test.go
+│   └── logrus.go
+├── metrics/                        # Metrics interfaces
+│   └── metrics.go
+├── tracing/                        # Tracing interfaces
+│   └── tracer.go
 └── examples/                       # Usage examples
-    ├── user-service/
-    ├── order-service/
-    ├── payment-service/
-    └── notification-service/
+    └── example/                    # Comprehensive example
 ```
 
-## Usage
+## Quick Start
 
-### In a Microservice
+### Basic Usage
 
 ```go
 package main
 
 import (
     "context"
-    "log"
     "os"
     "os/signal"
     "syscall"
 
-    "github.com/yourusername/foundation"
+    foundation "github.com/yourusername/foundation"
+    "github.com/yourusername/foundation/connectrpc"
 )
 
 func main() {
-    // Create app with name and version
-    application := totex.New("user-service", "1.0.0")
+    // Create app with default configuration
+    app := foundation.New()
 
-    // Initialize all services
-    if err := application.Init(); err != nil {
-        log.Fatalf("Failed to initialize app: %v", err)
+    // Create ConnectRPC server
+    server := connectrpc.NewServer("my-service", ":8080", app.Logger())
+    
+    // Add server to lifecycle management
+    app.AddServer(server)
+
+    // Start all servers
+    if err := app.Start(context.Background()); err != nil {
+        app.Logger().Error("Failed to start app", "error", err)
+        os.Exit(1)
     }
 
-    // Create context for graceful shutdown
-    ctx, cancel := context.WithCancel(context.Background())
-    defer cancel()
-
-    // Start all services
-    if err := application.Start(ctx); err != nil {
-        log.Fatalf("Failed to start app: %v", err)
-    }
-
-    // Create business logic with injected dependencies
-    userHandler := &handlers.UserHandler{
-        Logger:   application.Logger(),
-        Tracer:   application.Tracer(),
-        Metrics:  application.Metrics(),
-        Broker:   application.Broker(),
-        Cache:    application.Cache(),
-        Database: application.Database(),
-    }
-
-    // Register ConnectRPC handlers
-    connectServer := application.ConnectRPCServer()
-    connectServer.RegisterHandler("/user.UserService/", userHandler)
-
-    // Wait for shutdown signal
+    // Graceful shutdown
     sigChan := make(chan os.Signal, 1)
     signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-    application.Logger().Info("User service started successfully")
     <-sigChan
 
-    application.Logger().Info("Shutdown signal received, stopping app...")
-    if err := application.Stop(ctx); err != nil {
-        application.Logger().Error("Error during shutdown", "error", err)
+    if err := app.Stop(context.Background()); err != nil {
+        app.Logger().Error("Error during shutdown", "error", err)
         os.Exit(1)
     }
 }
 ```
 
-## Example: Create User API
+### With Business Logic
 
-You can create a user using the following HTTP request (assuming your service is running on `localhost:8080`):
+```go
+// Get injected dependencies
+logger := app.Logger()
+tracer := app.Tracer()
+metrics := app.Metrics()
 
-```sh
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","name":"Test User","password":"supersecret"}' \
-  http://localhost:8080/user.v1.UserService/CreateUser
+// Use in business logic
+func (h *MyHandler) ProcessRequest(ctx context.Context, data string) error {
+    // Start tracing
+    span := h.Tracer.StartSpan("process_request")
+    defer span.Finish()
+
+    // Record metrics
+    h.Metrics.Counter("requests_processed", 1, "service", "my-service")
+
+    // Log operation
+    h.Logger.Info("Processing request", "data", data)
+    
+    return nil
+}
 ```
 
-**Sample response:**
-```json
-{"userId":"6b28208b-79ae-4712-8b71-dab93ee1234f", "email":"test@example.com", "name":"Test User", "createdAt":"2025-07-09T07:20:46Z"}
-```
+## Key Features
+
+### 1. Cross-Cutting Concerns
+- **Logging**: Structured logging with multiple backends (slog, logrus)
+- **Metrics**: Observability metrics (counters, gauges, histograms)
+- **Tracing**: Distributed tracing support
+- **Configuration**: Environment-based configuration
+
+### 2. Lifecycle Management
+- **Server Registry**: Add multiple servers with `AddServer()`
+- **Ordered Startup**: Servers start in registration order
+- **Graceful Shutdown**: Servers stop in reverse order
+- **Error Handling**: Proper error propagation
+
+### 3. Dependency Injection
+- **Logger**: `app.Logger()` - Structured logging
+- **Tracer**: `app.Tracer()` - Distributed tracing
+- **Metrics**: `app.Metrics()` - Observability metrics
 
 ## Configuration
 
 The library uses environment variables for configuration:
 
-- `APP_NAME`: Application name
-- `APP_VERSION`: Application version
-- `APP_ENV`: Environment (development, staging, production)
-- `LOGGER_LEVEL`: Log level (debug, info, warn, error)
-- `LOGGER_FORMAT`: Log format (text, json)
-- `LOGGER_OUTPUT`: Log output (stdout, stderr, file path)
-- `TRACER_TYPE`: Tracer type (jaeger, zipkin)
-- `TRACER_ENDPOINT`: Tracer endpoint
-- `METRICS_TYPE`: Metrics type (prometheus, statsd)
-- `METRICS_PORT`: Metrics port
-- `BROKER_TYPE`: Broker type (kafka, rabbitmq, nats)
-- `CACHE_TYPE`: Cache type (redis, memcached)
-- `DATABASE_TYPE`: Database type (postgres, mysql)
-- `CONNECTRPC_ADDRESS`: ConnectRPC server address
+```bash
+# Logger configuration
+export LOGGER_TYPE="slog"           # slog, logrus
+export LOGGER_LEVEL="info"          # debug, info, warn, error
+export LOGGER_FORMAT="text"         # text, json
+export LOGGER_OUTPUT="stdout"       # stdout, stderr, file path
+```
+
+## Examples
+
+See the `examples/` directory for a comprehensive example showing:
+- Foundation initialization
+- ConnectRPC server integration
+- Dependency injection
+- Graceful shutdown
+- Business logic implementation
+
+```bash
+cd examples/example
+go run main.go
+```
+
+## Architecture Benefits
+
+### 1. **Separation of Concerns**
+- Foundation handles cross-cutting concerns only
+- Transport layer is separate and optional
+- Business logic is clean and focused
+
+### 2. **Flexibility**
+- Support for multiple transport protocols
+- Configurable server addresses and settings
+- Easy to extend with new server types
+
+### 3. **Testability**
+- Clear interfaces for mocking
+- Separation enables unit testing
+- Mock implementations provided
+
+### 4. **Maintainability**
+- Small, focused modules
+- Clear responsibilities
+- Easy to understand and extend
+
+## Migration from Previous Versions
+
+If you're migrating from an older version:
+
+1. **Update imports**: Add `"github.com/yourusername/foundation/connectrpc"`
+2. **Create server**: Use `connectrpc.NewServer()` instead of `app.ConnectRPCServer()`
+3. **Register server**: Call `app.AddServer(server)` to add to lifecycle management
+4. **No other changes needed**: All other foundation APIs remain the same
 
 ## Status
 
-This is a **skeleton implementation** with:
-- ✅ **Architecture** - Complete interface definitions and structure
-- ✅ **Configuration** - Environment-based configuration loading
-- ✅ **Factory Pattern** - Service creation factories
-- ✅ **Mock Implementations** - For testing and development
-- 🚧 **Real Implementations** - Placeholder implementations (TODO)
-
-## Next Steps
-
-1. Implement actual service providers (Jaeger, Prometheus, Redis, etc.)
-2. Add comprehensive tests
-3. Create usage examples
-4. Add documentation for each package 
+This is a **working implementation** with:
+- ✅ **Core Architecture** - Complete foundation with lifecycle management
+- ✅ **ConnectRPC Server** - HTTP server for ConnectRPC
+- ✅ **Cross-cutting Concerns** - Logging, metrics, tracing
+- ✅ **Examples** - Working examples and documentation
+- ✅ **Graceful Shutdown** - Proper resource cleanup
+- 🚧 **Advanced Features** - Additional server types, real implementations (TODO) 

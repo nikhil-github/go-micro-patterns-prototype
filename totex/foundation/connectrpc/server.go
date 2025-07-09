@@ -2,75 +2,71 @@ package connectrpc
 
 import (
 	"context"
-	"log/slog"
+	"fmt"
+	"net/http"
 
-	"connectrpc.com/connect"
-	"github.com/spf13/viper"
+	"github.com/yourusername/foundation/logging"
 )
 
-type Config struct {
-	Address string
-}
-
-func LoadConfig() Config {
-	viper.SetDefault("CONNECTRPC_ADDRESS", ":8080")
-	viper.BindEnv("CONNECTRPC_ADDRESS")
-	return Config{
-		Address: viper.GetString("CONNECTRPC_ADDRESS"),
-	}
-}
-
+// Server represents a ConnectRPC HTTP server
 type Server struct {
-	config   Config
-	handlers map[string]interface{}
-	logger   *slog.Logger
+	name   string
+	logger logging.Logger
+	mux    *http.ServeMux
+	addr   string
+	server *http.Server
 }
 
-func NewServer(cfg Config, logger *slog.Logger) *Server {
+// NewServer creates a new ConnectRPC server
+func NewServer(name, addr string, logger logging.Logger) *Server {
 	return &Server{
-		config:   cfg,
-		handlers: make(map[string]interface{}),
-		logger:   logger,
+		name:   name,
+		logger: logger,
+		mux:    http.NewServeMux(),
+		addr:   addr,
 	}
 }
 
-func (s *Server) Start(ctx context.Context) error {
-	s.logger.Info("Starting connectRPC server", "address", s.config.Address)
-	// TODO: Implement actual server start logic
-	return nil
-}
-
-func (s *Server) Stop(ctx context.Context) error {
-	s.logger.Info("Stopping connectRPC server", "address", s.config.Address)
-	// TODO: Implement actual server stop logic
-	return nil
-}
-
-func (s *Server) Name() string {
-	return "connectrpc-server"
-}
-
+// RegisterHandler registers a ConnectRPC handler
 func (s *Server) RegisterHandler(path string, handler interface{}) error {
-	s.handlers[path] = handler
+	h, ok := handler.(http.Handler)
+	if !ok {
+		s.logger.Error("Handler does not implement http.Handler", "path", path)
+		return fmt.Errorf("handler for %s does not implement http.Handler", path)
+	}
+	s.mux.Handle(path, h)
 	s.logger.Info("Registered handler", "path", path)
 	return nil
 }
 
-func (s *Server) GetHandler() interface{} {
-	return s.handlers
+// GetHandler returns the underlying http.Handler
+func (s *Server) GetHandler() http.Handler {
+	return s.mux
 }
 
-func NewDummyHandler() *connect.Handler {
-	return connect.NewUnaryHandler("/test.TestService/TestMethod", func(ctx context.Context, req *connect.Request[any]) (*connect.Response[any], error) {
-		return connect.NewResponse[any](nil), nil
-	})
+// Start starts the HTTP server
+func (s *Server) Start(ctx context.Context) error {
+	s.logger.Info("Starting ConnectRPC HTTP server", "address", s.addr)
+	s.server = &http.Server{
+		Addr:    s.addr,
+		Handler: s.mux,
+	}
+	go func() {
+		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("HTTP server error", "error", err)
+		}
+	}()
+	return nil
 }
 
-// ConnectRPCServer interface for gRPC/Connect-RPC server
-type ConnectRPCServer interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	Name() string
-	RegisterHandler(path string, handler interface{}) error
-	GetHandler() interface{}
+// Stop stops the HTTP server gracefully
+func (s *Server) Stop(ctx context.Context) error {
+	s.logger.Info("Stopping ConnectRPC HTTP server", "address", s.addr)
+	if s.server != nil {
+		return s.server.Shutdown(ctx)
+	}
+	return nil
 }
+
+// Name returns the server name
+func (s *Server) Name() string { return s.name }

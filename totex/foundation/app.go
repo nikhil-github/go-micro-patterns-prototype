@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"sync"
 
@@ -16,35 +15,28 @@ import (
 
 type Span = tracing.Span
 type SpanOption = tracing.SpanOption
+type Logger = logging.Logger
+type Tracer = tracing.Tracer
+type Metrics = metrics.Metrics
 
-// ConnectRPCServer interface for gRPC/Connect-RPC server
-type ConnectRPCServer interface {
-	Start(ctx context.Context) error
-	Stop(ctx context.Context) error
-	Name() string
-	RegisterHandler(path string, handler interface{}) error
-	GetHandler() interface{}
-}
-
-// Service represents a lifecycle-managed component
-// (e.g., servers) that can be started and stopped.
-type Service interface {
+// Server represents a lifecycle-managed server component
+// (e.g., HTTP servers, gRPC servers) that can be started and stopped.
+type Server interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Name() string
 }
 
-// App represents the main application with all services
+// App represents the main application with cross-cutting concerns
 type App struct {
-	logger           logging.Logger
-	tracer           tracing.Tracer
-	metrics          metrics.Metrics
-	connectRPCServer ConnectRPCServer
+	logger  logging.Logger
+	tracer  tracing.Tracer
+	metrics metrics.Metrics
 
-	services []Service
-	ctx      context.Context
-	cancel   context.CancelFunc
-	mu       sync.Mutex
+	servers []Server
+	ctx     context.Context
+	cancel  context.CancelFunc
+	mu      sync.Mutex
 }
 
 // Config holds configuration for logger and other services
@@ -79,66 +71,68 @@ func LoadConfig() Config {
 	}
 }
 
-// NewWithConfig returns an App with logger, metrics, tracing, and connectRPC server using config
+// NewWithConfig returns an App with logger, metrics, and tracing using config
 func NewWithConfig(cfg Config) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := NewLoggerFromConfig(cfg.Logger)
 	metrics := NewDefaultMetrics()
 	tracer := NewDefaultTracer()
-	server := NewDefaultConnectRPCServer(logger)
 
 	app := &App{
-		logger:           logger,
-		tracer:           tracer,
-		metrics:          metrics,
-		connectRPCServer: server,
-		ctx:              ctx,
-		cancel:           cancel,
-	}
-	app.services = []Service{
-		server,
+		logger:  logger,
+		tracer:  tracer,
+		metrics: metrics,
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 	return app
 }
 
-// New returns an App with default logger, metrics, tracing, and connectRPC server
+// New returns an App with default logger, metrics, and tracing
 func New() *App {
 	return NewWithConfig(LoadConfig())
 }
 
-// Start starts all services
+// AddServer adds a server to the app's lifecycle management
+func (a *App) AddServer(server Server) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.servers = append(a.servers, server)
+}
+
+// Start starts all servers
 func (a *App) Start(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	a.logger.Info("Starting app")
-	for _, service := range a.services {
-		if err := service.Start(ctx); err != nil {
-			a.logger.Error("Failed to start service", "service", service.Name(), "error", err)
-			return fmt.Errorf("failed to start %s: %w", service.Name(), err)
+	for _, server := range a.servers {
+		if err := server.Start(ctx); err != nil {
+			a.logger.Error("Failed to start server", "server", server.Name(), "error", err)
+			return fmt.Errorf("failed to start %s: %w", server.Name(), err)
 		}
-		a.logger.Info("Started service", "service", service.Name())
+		a.logger.Info("Started server", "server", server.Name())
 	}
-	a.logger.Info("All services started successfully")
+	a.logger.Info("All servers started successfully")
 	return nil
 }
 
-// Stop stops all services gracefully
+// Stop stops all servers gracefully
 func (a *App) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	a.logger.Info("Stopping app")
 	a.cancel()
-	for i := len(a.services) - 1; i >= 0; i-- {
-		service := a.services[i]
-		if err := service.Stop(ctx); err != nil {
-			a.logger.Error("Failed to stop service", "service", service.Name(), "error", err)
+	for i := len(a.servers) - 1; i >= 0; i-- {
+		server := a.servers[i]
+		if err := server.Stop(ctx); err != nil {
+			a.logger.Error("Failed to stop server", "server", server.Name(), "error", err)
 		} else {
-			a.logger.Info("Stopped service", "service", service.Name())
+			a.logger.Info("Stopped server", "server", server.Name())
 		}
 	}
-	a.logger.Info("All services stopped")
+	a.logger.Info("All servers stopped")
 	return nil
 }
 
@@ -150,9 +144,6 @@ func (a *App) Metrics() metrics.Metrics { return a.metrics }
 
 // Tracer returns the tracer
 func (a *App) Tracer() tracing.Tracer { return a.tracer }
-
-// ConnectRPCServer returns the connectRPC server
-func (a *App) ConnectRPCServer() ConnectRPCServer { return a.connectRPCServer }
 
 // --- Default Implementations ---
 
@@ -225,60 +216,3 @@ func (s *NoopSpan) SetTag(key, value string) {}
 func (s *NoopSpan) SetError(err error)       {}
 func (s *NoopSpan) Finish()                  {}
 func (s *NoopSpan) Context() context.Context { return context.Background() }
-
-// NewDefaultConnectRPCServer returns a real connectrpc server implementation
-func NewDefaultConnectRPCServer(logger logging.Logger) ConnectRPCServer {
-	return &HTTPConnectRPCServer{
-		name:   "connectrpc-server",
-		logger: logger,
-		mux:    http.NewServeMux(),
-		addr:   ":8080",
-	}
-}
-
-type HTTPConnectRPCServer struct {
-	name   string
-	logger logging.Logger
-	mux    *http.ServeMux
-	addr   string
-	server *http.Server
-}
-
-func (s *HTTPConnectRPCServer) RegisterHandler(path string, handler interface{}) error {
-	h, ok := handler.(http.Handler)
-	if !ok {
-		s.logger.Error("Handler does not implement http.Handler", "path", path)
-		return fmt.Errorf("handler for %s does not implement http.Handler", path)
-	}
-	s.mux.Handle(path, h)
-	s.logger.Info("Registered handler", "path", path)
-	return nil
-}
-
-func (s *HTTPConnectRPCServer) GetHandler() interface{} {
-	return s.mux
-}
-
-func (s *HTTPConnectRPCServer) Start(ctx context.Context) error {
-	s.logger.Info("Starting ConnectRPC HTTP server", "address", s.addr)
-	s.server = &http.Server{
-		Addr:    s.addr,
-		Handler: s.mux,
-	}
-	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.logger.Error("HTTP server error", "error", err)
-		}
-	}()
-	return nil
-}
-
-func (s *HTTPConnectRPCServer) Stop(ctx context.Context) error {
-	s.logger.Info("Stopping ConnectRPC HTTP server", "address", s.addr)
-	if s.server != nil {
-		return s.server.Shutdown(ctx)
-	}
-	return nil
-}
-
-func (s *HTTPConnectRPCServer) Name() string { return s.name }
