@@ -113,6 +113,22 @@ func main() {
 }
 ```
 
+## Example: Create User API
+
+You can create a user using the following HTTP request (assuming your service is running on `localhost:8080`):
+
+```sh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","name":"Test User","password":"supersecret"}' \
+  http://localhost:8080/user.v1.UserService/CreateUser
+```
+
+**Sample response:**
+```json
+{"userId":"6b28208b-79ae-4712-8b71-dab93ee1234f", "email":"test@example.com", "name":"Test User", "createdAt":"2025-07-09T07:20:46Z"}
+```
+
 ## Configuration
 
 The library uses environment variables for configuration:
