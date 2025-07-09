@@ -19,17 +19,10 @@ func main() {
 	userSvc := user.NewService()
 	path, handler := userv1connect.NewUserServiceHandler(userSvc)
 
-	// Try to register handler using the ConnectRPCServer interface
+	// Register handler using the ConnectRPCServer interface directly
 	server := app.ConnectRPCServer()
-	if register, ok := interface{}(server).(interface {
-		RegisterHandler(string, interface{}) error
-	}); ok {
-		if err := register.RegisterHandler(path, handler); err != nil {
-			logger.Error("Failed to register ConnectRPC handler", "error", err)
-			os.Exit(1)
-		}
-	} else {
-		logger.Error("ConnectRPCServer does not support RegisterHandler")
+	if err := server.RegisterHandler(path, handler); err != nil {
+		logger.Error("Failed to register ConnectRPC handler", "error", err)
 		os.Exit(1)
 	}
 

@@ -21,6 +21,8 @@ type ConnectRPCServer interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	Name() string
+	RegisterHandler(path string, handler interface{}) error
+	GetHandler() interface{}
 }
 
 // Service represents a lifecycle-managed component
@@ -181,15 +183,7 @@ func (l *SlogLogger) Info(msg string, args ...any)    { l.slog.Info(msg, args...
 func (l *SlogLogger) Warn(msg string, args ...any)    { l.slog.Warn(msg, args...) }
 func (l *SlogLogger) Error(msg string, args ...any)   { l.slog.Error(msg, args...) }
 func (l *SlogLogger) With(args ...any) logging.Logger { return l }
-func (l *SlogLogger) Start(ctx context.Context) error {
-	l.Info("Logger started", "name", l.name)
-	return nil
-}
-func (l *SlogLogger) Stop(ctx context.Context) error {
-	l.Info("Logger stopped", "name", l.name)
-	return nil
-}
-func (l *SlogLogger) Name() string { return l.name }
+func (l *SlogLogger) Name() string                    { return l.name }
 
 // NewDefaultMetrics returns a stub metrics implementation
 func NewDefaultMetrics() metrics.Metrics {
