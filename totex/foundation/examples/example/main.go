@@ -8,12 +8,15 @@ import (
 	"syscall"
 
 	foundation "github.com/yourusername/foundation"
-	"github.com/yourusername/foundation/connectrpc"
 )
 
 func main() {
-	// Create app with default configuration
-	app := foundation.New()
+	// Set environment variables for server configuration
+	os.Setenv("SERVER_NAME", "example-server")
+	os.Setenv("SERVER_ADDR", ":8080")
+
+	// Create app with name and version (automatically creates ConnectRPC server)
+	app := foundation.New("example-service", "1.0.0")
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -24,8 +27,11 @@ func main() {
 	tracer := app.Tracer()
 	metrics := app.Metrics()
 
-	// Create ConnectRPC server
-	server := connectrpc.NewServer("example-server", ":8080", logger)
+	// Get the automatically created ConnectRPC server
+	connectServer := app.ConnectRPC()
+	if connectServer == nil {
+		log.Fatal("ConnectRPC server not found")
+	}
 
 	// Example: Create business logic with injected dependencies
 	exampleHandler := &ExampleHandler{
@@ -35,12 +41,9 @@ func main() {
 	}
 
 	// Example: Register ConnectRPC handlers
-	if err := server.RegisterHandler("/example.ExampleService/", exampleHandler); err != nil {
+	if err := connectServer.RegisterHandler("/example.ExampleService/", exampleHandler); err != nil {
 		logger.Error("Failed to register ConnectRPC handler", "error", err)
 	}
-
-	// Add server to app's lifecycle management
-	app.AddServer(server)
 
 	// Start all servers
 	if err := app.Start(ctx); err != nil {

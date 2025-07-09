@@ -3,11 +3,9 @@ package foundation
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os"
 	"sync"
 
-	"github.com/spf13/viper"
+	"github.com/yourusername/foundation/connectrpc"
 	"github.com/yourusername/foundation/logging"
 	"github.com/yourusername/foundation/metrics"
 	"github.com/yourusername/foundation/tracing"
@@ -29,9 +27,12 @@ type Server interface {
 
 // App represents the main application with cross-cutting concerns
 type App struct {
-	logger  logging.Logger
-	tracer  tracing.Tracer
-	metrics metrics.Metrics
+	name       string
+	version    string
+	logger     logging.Logger
+	tracer     tracing.Tracer
+	metrics    metrics.Metrics
+	connectRPC *connectrpc.Server
 
 	servers []Server
 	ctx     context.Context
@@ -39,58 +40,41 @@ type App struct {
 	mu      sync.Mutex
 }
 
-// Config holds configuration for logger and other services
-type Config struct {
-	Logger LoggerConfig
-	// Add other configs as needed
-}
-
-// LoggerConfig configuration for the logger
-type LoggerConfig struct {
-	Type   string
-	Level  string
-	Format string
-	Output string
-}
-
-// LoadConfig loads configuration using viper and returns a Config struct
-func LoadConfig() Config {
-	viper.AutomaticEnv()
-	viper.SetDefault("LOGGER_TYPE", "slog")
-	viper.SetDefault("LOGGER_LEVEL", "info")
-	viper.SetDefault("LOGGER_FORMAT", "text")
-	viper.SetDefault("LOGGER_OUTPUT", "stdout")
-
-	return Config{
-		Logger: LoggerConfig{
-			Type:   viper.GetString("LOGGER_TYPE"),
-			Level:  viper.GetString("LOGGER_LEVEL"),
-			Format: viper.GetString("LOGGER_FORMAT"),
-			Output: viper.GetString("LOGGER_OUTPUT"),
-		},
-	}
-}
-
-// NewWithConfig returns an App with logger, metrics, and tracing using config
-func NewWithConfig(cfg Config) *App {
+// NewWithConfig returns an App with logger, metrics, tracing, and servers using AppConfig
+func NewWithConfig(name, version string, cfg AppConfig) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := NewLoggerFromConfig(cfg.Logger)
-	metrics := NewDefaultMetrics()
-	tracer := NewDefaultTracer()
+	metrics := NewMetricsFromConfig(cfg.Metrics)
+	tracer := NewTracerFromConfig(cfg.Tracer)
 
 	app := &App{
+		name:    name,
+		version: version,
 		logger:  logger,
 		tracer:  tracer,
 		metrics: metrics,
 		ctx:     ctx,
 		cancel:  cancel,
 	}
+
+	for _, serverCfg := range cfg.Servers {
+		server := createServerFromConfig(serverCfg, logger)
+		if server != nil {
+			app.AddServer(server)
+			if serverCfg.Type == "connectrpc" {
+				if connectServer, ok := server.(*connectrpc.Server); ok {
+					app.connectRPC = connectServer
+				}
+			}
+		}
+	}
+
 	return app
 }
 
-// New returns an App with default logger, metrics, and tracing
-func New() *App {
-	return NewWithConfig(LoadConfig())
+// New returns an App with default configuration
+func New(name, version string) *App {
+	return NewWithConfig(name, version, LoadConfigFromEnv())
 }
 
 // AddServer adds a server to the app's lifecycle management
@@ -105,7 +89,7 @@ func (a *App) Start(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.logger.Info("Starting app")
+	a.logger.Info("Starting app", "name", a.name, "version", a.version)
 	for _, server := range a.servers {
 		if err := server.Start(ctx); err != nil {
 			a.logger.Error("Failed to start server", "server", server.Name(), "error", err)
@@ -122,7 +106,7 @@ func (a *App) Stop(ctx context.Context) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	a.logger.Info("Stopping app")
+	a.logger.Info("Stopping app", "name", a.name, "version", a.version)
 	a.cancel()
 	for i := len(a.servers) - 1; i >= 0; i-- {
 		server := a.servers[i]
@@ -145,74 +129,59 @@ func (a *App) Metrics() metrics.Metrics { return a.metrics }
 // Tracer returns the tracer
 func (a *App) Tracer() tracing.Tracer { return a.tracer }
 
-// --- Default Implementations ---
+// Name returns the app name
+func (a *App) Name() string { return a.name }
 
-// NewDefaultLogger returns a stub logger (slog-based)
-func NewDefaultLogger() logging.Logger {
-	return &SlogLogger{name: "default-logger", slog: slog.Default()}
+// Version returns the app version
+func (a *App) Version() string { return a.version }
+
+// ConnectRPC returns the ConnectRPC server
+func (a *App) ConnectRPC() *connectrpc.Server { return a.connectRPC }
+
+// GetServers returns all registered servers
+func (a *App) GetServers() []Server {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.servers
 }
 
-// NewLoggerFromConfig creates a logger using LoggerConfig (currently only slog, extend as needed)
-func NewLoggerFromConfig(cfg LoggerConfig) logging.Logger {
-	// For demonstration, only slog is implemented. Extend for logrus/zap as needed.
-	var h slog.Handler
-	if cfg.Format == "json" {
-		h = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{})
-	} else {
-		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{})
+// GetServerByName returns a server by name
+func (a *App) GetServerByName(name string) Server {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, server := range a.servers {
+		if server.Name() == name {
+			return server
+		}
 	}
-	l := slog.New(h)
-	return &SlogLogger{name: "configured-logger", slog: l}
-}
-
-type SlogLogger struct {
-	name string
-	slog *slog.Logger
-}
-
-func (l *SlogLogger) Debug(msg string, args ...any)   { l.slog.Debug(msg, args...) }
-func (l *SlogLogger) Info(msg string, args ...any)    { l.slog.Info(msg, args...) }
-func (l *SlogLogger) Warn(msg string, args ...any)    { l.slog.Warn(msg, args...) }
-func (l *SlogLogger) Error(msg string, args ...any)   { l.slog.Error(msg, args...) }
-func (l *SlogLogger) With(args ...any) logging.Logger { return l }
-func (l *SlogLogger) Name() string                    { return l.name }
-
-// NewDefaultMetrics returns a stub metrics implementation
-func NewDefaultMetrics() metrics.Metrics {
-	return &NoopMetrics{name: "default-metrics"}
-}
-
-type NoopMetrics struct{ name string }
-
-func (m *NoopMetrics) Counter(name string, value float64, labels ...string)   {}
-func (m *NoopMetrics) Gauge(name string, value float64, labels ...string)     {}
-func (m *NoopMetrics) Histogram(name string, value float64, labels ...string) {}
-func (m *NoopMetrics) Summary(name string, value float64, labels ...string)   {}
-func (m *NoopMetrics) Start(ctx context.Context) error                        { return nil }
-func (m *NoopMetrics) Stop(ctx context.Context) error                         { return nil }
-func (m *NoopMetrics) Name() string                                           { return m.name }
-
-// NewDefaultTracer returns a stub tracer implementation
-func NewDefaultTracer() tracing.Tracer {
-	return &NoopTracer{name: "default-tracer"}
-}
-
-type NoopTracer struct{ name string }
-
-func (t *NoopTracer) StartSpan(name string, opts ...SpanOption) Span { return &NoopSpan{} }
-func (t *NoopTracer) Inject(span Span, format interface{}, carrier interface{}) error {
 	return nil
 }
-func (t *NoopTracer) Extract(format interface{}, carrier interface{}) (Span, error) {
-	return &NoopSpan{}, nil
+
+// createServerFromConfig creates a server based on the configuration
+func createServerFromConfig(cfg ServerConfig, logger logging.Logger) Server {
+	switch cfg.Type {
+	case "connectrpc":
+		return connectrpc.NewServer(cfg.Name, cfg.Addr, logger)
+	// Add more server types here as needed
+	default:
+		logger.Error("Unknown server type", "type", cfg.Type)
+		return nil
+	}
 }
-func (t *NoopTracer) Start(ctx context.Context) error { return nil }
-func (t *NoopTracer) Stop(ctx context.Context) error  { return nil }
-func (t *NoopTracer) Name() string                    { return t.name }
 
-type NoopSpan struct{}
+// NewLoggerFromConfig creates a logger using LoggerConfig
+func NewLoggerFromConfig(cfg LoggerConfig) logging.Logger {
+	return logging.NewSlogLogger("configured-logger", cfg.Level, cfg.Format, cfg.Output)
+}
 
-func (s *NoopSpan) SetTag(key, value string) {}
-func (s *NoopSpan) SetError(err error)       {}
-func (s *NoopSpan) Finish()                  {}
-func (s *NoopSpan) Context() context.Context { return context.Background() }
+// NewMetricsFromConfig creates metrics using MetricsConfig
+func NewMetricsFromConfig(cfg MetricsConfig) metrics.Metrics {
+	// For now, return default metrics. Extend for prometheus/statsd as needed.
+	return metrics.NewDefaultMetrics()
+}
+
+// NewTracerFromConfig creates tracer using TracerConfig
+func NewTracerFromConfig(cfg TracerConfig) tracing.Tracer {
+	// For now, return default tracer. Extend for jaeger/zipkin as needed.
+	return tracing.NewDefaultTracer()
+}

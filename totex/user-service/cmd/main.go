@@ -7,30 +7,35 @@ import (
 	"syscall"
 
 	foundation "github.com/yourusername/foundation"
-	"github.com/yourusername/foundation/connectrpc"
 	userv1connect "github.com/yourusername/schema/gen/user/v1/userv1connect"
 	"github.com/yourusername/user-service/internal/user"
 )
 
 func main() {
-	app := foundation.New()
-	logger := app.Logger()
+	// Set environment variables for server configuration
+	os.Setenv("SERVER_NAME", "user-service-server")
+	os.Setenv("SERVER_ADDR", ":8080")
 
-	// Create ConnectRPC server as a separate server
-	server := connectrpc.NewServer("user-service-server", ":8080", logger)
+	// Create app with name and version (automatically creates ConnectRPC server)
+	app := foundation.New("user-service", "1.0.0")
+	logger := app.Logger()
 
 	// User service implementation (no DB)
 	userSvc := user.NewService()
 	path, handler := userv1connect.NewUserServiceHandler(userSvc)
 
-	// Register handler with the server
-	if err := server.RegisterHandler(path, handler); err != nil {
-		logger.Error("Failed to register ConnectRPC handler", "error", err)
+	// Get the automatically created ConnectRPC server
+	connectServer := app.ConnectRPC()
+	if connectServer == nil {
+		logger.Error("ConnectRPC server not found")
 		os.Exit(1)
 	}
 
-	// Add the server to the app's lifecycle management
-	app.AddServer(server)
+	// Register handler with the auto-created server
+	if err := connectServer.RegisterHandler(path, handler); err != nil {
+		logger.Error("Failed to register ConnectRPC handler", "error", err)
+		os.Exit(1)
+	}
 
 	// Start all servers (including HTTP server)
 	if err := app.Start(context.Background()); err != nil {

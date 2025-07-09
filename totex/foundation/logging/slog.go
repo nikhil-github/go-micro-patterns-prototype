@@ -2,55 +2,60 @@ package logging
 
 import (
 	"log/slog"
+	"os"
 )
 
-// SlogLogger implements the Logger interface using Go's slog package
-// It provides structured logging with a name for identification.
+// SlogLogger implements Logger using slog
 type SlogLogger struct {
-	logger *slog.Logger
-	name   string
+	name string
+	slog *slog.Logger
 }
 
-// parseLogLevel converts string level to slog.Level
-func parseLogLevel(level string) slog.Level {
+// NewSlogLogger creates a new slog-based logger
+func NewSlogLogger(name string, level, format, output string) Logger {
+	var h slog.Handler
+
+	// Set log level
+	levelOpt := &slog.LevelVar{}
 	switch level {
 	case "debug":
-		return slog.LevelDebug
-	case "info", "":
-		return slog.LevelInfo
+		levelOpt.Set(slog.LevelDebug)
 	case "warn":
-		return slog.LevelWarn
+		levelOpt.Set(slog.LevelWarn)
 	case "error":
-		return slog.LevelError
+		levelOpt.Set(slog.LevelError)
 	default:
-		return slog.LevelInfo
+		levelOpt.Set(slog.LevelInfo)
 	}
-}
 
-// Only keep methods required by the Logger interface
-func (l *SlogLogger) Name() string {
-	return l.name
-}
+	// Set format
+	if format == "json" {
+		h = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: levelOpt,
+		})
+	} else {
+		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: levelOpt,
+		})
+	}
 
-func (l *SlogLogger) Debug(msg string, args ...any) {
-	l.logger.Debug(msg, args...)
-}
-
-func (l *SlogLogger) Info(msg string, args ...any) {
-	l.logger.Info(msg, args...)
-}
-
-func (l *SlogLogger) Warn(msg string, args ...any) {
-	l.logger.Warn(msg, args...)
-}
-
-func (l *SlogLogger) Error(msg string, args ...any) {
-	l.logger.Error(msg, args...)
-}
-
-func (l *SlogLogger) With(args ...any) Logger {
 	return &SlogLogger{
-		logger: l.logger.With(args...),
-		name:   l.name,
+		name: name,
+		slog: slog.New(h),
 	}
 }
+
+// NewDefaultSlogLogger creates a default slog logger
+func NewDefaultSlogLogger() Logger {
+	return &SlogLogger{
+		name: "default-logger",
+		slog: slog.Default(),
+	}
+}
+
+func (l *SlogLogger) Debug(msg string, args ...any) { l.slog.Debug(msg, args...) }
+func (l *SlogLogger) Info(msg string, args ...any)  { l.slog.Info(msg, args...) }
+func (l *SlogLogger) Warn(msg string, args ...any)  { l.slog.Warn(msg, args...) }
+func (l *SlogLogger) Error(msg string, args ...any) { l.slog.Error(msg, args...) }
+func (l *SlogLogger) With(args ...any) Logger       { return l }
+func (l *SlogLogger) Name() string                  { return l.name }
