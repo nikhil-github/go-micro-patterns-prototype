@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/spf13/viper"
@@ -165,9 +166,9 @@ func NewLoggerFromConfig(cfg LoggerConfig) logging.Logger {
 	// For demonstration, only slog is implemented. Extend for logrus/zap as needed.
 	var h slog.Handler
 	if cfg.Format == "json" {
-		h = slog.NewJSONHandler(nil, &slog.HandlerOptions{})
+		h = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{})
 	} else {
-		h = slog.NewTextHandler(nil, &slog.HandlerOptions{})
+		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{})
 	}
 	l := slog.New(h)
 	return &SlogLogger{name: "configured-logger", slog: l}

@@ -7,12 +7,11 @@
 package orderv1
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -243,9 +242,9 @@ const file_order_v1_order_proto_rawDesc = "" +
 	"\bquantity\x18\x02 \x01(\x05R\bquantity\x12\x14\n" +
 	"\x05price\x18\x03 \x01(\x01R\x05price2Z\n" +
 	"\fOrderService\x12J\n" +
-	"\vCreateOrder\x12\x1c.order.v1.CreateOrderRequest\x1a\x1d.order.v1.CreateOrderResponseB\x9e\x01\n" +
+	"\vCreateOrder\x12\x1c.order.v1.CreateOrderRequest\x1a\x1d.order.v1.CreateOrderResponseB\x90\x01\n" +
 	"\fcom.order.v1B\n" +
-	"OrderProtoP\x01ZAgithub.com/yourusername/schema/gen/order/v1;orderv1\xa2\x02\x03OXX\xaa\x02\bOrder.V1\xca\x02\bOrder\\V1\xe2\x02\x14Order\\V1\\GPBMetadata\xea\x02\tOrder::V1b\x06proto3"
+	"OrderProtoP\x01Z3github.com/yourusername/schema/gen/order/v1;orderv1\xa2\x02\x03OXX\xaa\x02\bOrder.V1\xca\x02\bOrder\\V1\xe2\x02\x14Order\\V1\\GPBMetadata\xea\x02\tOrder::V1b\x06proto3"
 
 var (
 	file_order_v1_order_proto_rawDescOnce sync.Once

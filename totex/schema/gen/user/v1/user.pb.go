@@ -7,12 +7,11 @@
 package userv1
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -169,8 +168,8 @@ const file_user_v1_user_proto_rawDesc = "" +
 	"created_at\x18\x04 \x01(\tR\tcreatedAt2T\n" +
 	"\vUserService\x12E\n" +
 	"\n" +
-	"CreateUser\x12\x1a.user.v1.CreateUserRequest\x1a\x1b.user.v1.CreateUserResponseB\x96\x01\n" +
-	"\vcom.user.v1B\tUserProtoP\x01Z?github.com/yourusername/schema/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
+	"CreateUser\x12\x1a.user.v1.CreateUserRequest\x1a\x1b.user.v1.CreateUserResponseB\x88\x01\n" +
+	"\vcom.user.v1B\tUserProtoP\x01Z1github.com/yourusername/schema/gen/user/v1;userv1\xa2\x02\x03UXX\xaa\x02\aUser.V1\xca\x02\aUser\\V1\xe2\x02\x13User\\V1\\GPBMetadata\xea\x02\bUser::V1b\x06proto3"
 
 var (
 	file_user_v1_user_proto_rawDescOnce sync.Once
